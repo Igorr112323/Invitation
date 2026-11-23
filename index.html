@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#120e1a">
+<title>Один вопрос…</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --bg: #120e1a;
+    --card: rgba(255,255,255,.055);
+    --stroke: rgba(255,255,255,.12);
+    --text: #f7f3ff;
+    --muted: rgba(247,243,255,.62);
+    --accent: #ff5d8f;
+    --accent2: #ffa07a;
+    --ok: #7dffb3;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* фоновые пятна */
+  .blobs { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  .blob {
+    position: absolute; border-radius: 50%; filter: blur(70px); opacity: .55;
+    animation: float 18s ease-in-out infinite;
+  }
+  .blob.b1 { width: 60vmax; height: 60vmax; left: -25vmax; top: -20vmax; background: radial-gradient(circle, #7a2a6b, transparent 65%); }
+  .blob.b2 { width: 55vmax; height: 55vmax; right: -22vmax; bottom: -18vmax; background: radial-gradient(circle, #2a2a7a, transparent 65%); animation-delay: -6s; }
+  .blob.b3 { width: 40vmax; height: 40vmax; left: 35%; top: 45%; background: radial-gradient(circle, #ff5d8f33, transparent 65%); animation-delay: -11s; }
+  @keyframes float {
+    0%,100% { transform: translate3d(0,0,0) scale(1); }
+    50% { transform: translate3d(3vmax,-4vmax,0) scale(1.08); }
+  }
+
+  .app {
+    position: relative; z-index: 1;
+    min-height: 100dvh;
+    display: flex; align-items: center; justify-content: center;
+    padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+  }
+
+  .screen {
+    display: none;
+    width: 100%; max-width: 520px;
+    flex-direction: column; align-items: center; text-align: center;
+  }
+  .screen.active { display: flex; animation: rise .55s cubic-bezier(.2,.9,.25,1) both; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(16px) scale(.985); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .badge {
+    font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 18px;
+    border: 1px solid var(--stroke); border-radius: 999px;
+    padding: 7px 14px; backdrop-filter: blur(8px);
+    background: rgba(255,255,255,.03);
+  }
+
+  h1 {
+    font-size: clamp(28px, 8.4vw, 44px);
+    line-height: 1.08; margin: 0 0 14px; font-weight: 800;
+    letter-spacing: -.03em;
+    text-wrap: balance;
+  }
+  .badge:empty { display: none; }
+  h1 .grad {
+    background: linear-gradient(100deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .sub { color: var(--muted); font-size: clamp(15px, 4.2vw, 17px); line-height: 1.5; margin: 0 0 30px; max-width: 40ch; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; width: 100%; }
+
+  button { font: inherit; cursor: pointer; border: 0; }
+  .btn {
+    position: relative;
+    padding: 16px 26px; border-radius: 18px;
+    font-size: clamp(16px, 4.4vw, 18px); font-weight: 700;
+    transition: transform .18s ease, box-shadow .25s ease, background .25s ease, opacity .25s ease;
+    touch-action: manipulation;
+    user-select: none;
+  }
+  .btn-yes {
+    background: linear-gradient(135deg, var(--accent), #ff8a5c);
+    color: #1a0a13;
+    box-shadow: 0 12px 34px -10px rgba(255,93,143,.75), inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  .btn-yes:active { transform: scale(.965); }
+  .btn-yes.pulse { animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 12px 34px -10px rgba(255,93,143,.75), inset 0 1px 0 rgba(255,255,255,.35); }
+    50% { box-shadow: 0 16px 46px -8px rgba(255,93,143,.95), inset 0 1px 0 rgba(255,255,255,.35); }
+  }
+  .btn-ghost {
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--stroke);
+    backdrop-filter: blur(10px);
+  }
+  .btn-ghost:active { transform: scale(.965); }
+
+  /* убегающая кнопка */
+  .runner {
+    position: relative;
+    z-index: 5;
+    touch-action: none;
+    will-change: transform;
+    transition: transform .26s cubic-bezier(.22,1,.36,1);
+  }
+  /* всплывающее «не попал» */
+  .miss {
+    position: fixed; z-index: 30; pointer-events: none;
+    font-size: 14px; font-weight: 800; letter-spacing: .01em;
+    color: #ffe1ea;
+    background: rgba(255,93,143,.18);
+    border: 1px solid rgba(255,93,143,.5);
+    padding: 7px 13px; border-radius: 999px; white-space: nowrap;
+    box-shadow: 0 10px 26px -12px rgba(255,93,143,.9);
+    animation: missUp 1.15s cubic-bezier(.2,.9,.25,1) forwards;
+  }
+  @keyframes missUp {
+    0%   { opacity: 0; transform: translate(-50%,-50%) scale(.82); }
+    16%  { opacity: 1; transform: translate(-50%,-135%) scale(1.04); }
+    70%  { opacity: 1; transform: translate(-50%,-205%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%,-285%) scale(1); }
+  }
+
+  .hint {
+    margin-top: 22px; font-size: 14px; color: var(--muted);
+    min-height: 20px; transition: opacity .3s ease;
+  }
+  .hint b { color: var(--text); }
+
+  .confetti { position: fixed; inset: 0; pointer-events: none; z-index: 9; overflow: hidden; }
+  .conf {
+    position: absolute; top: -24px; font-size: 18px; will-change: transform;
+    animation: fall linear forwards;
+  }
+  @keyframes fall {
+    to { transform: translate3d(var(--dx), 108vh, 0) rotate(var(--rot)); opacity: .1; }
+  }
+
+  /* на экране-интриге нет подписи — даём заголовку воздух */
+  #s0 h1, #s2 h1 { margin-bottom: 34px; }
+  #s3 h1 { margin-bottom: 26px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .blob, .btn-yes.pulse, .runner.tired { animation: none !important; }
+    .screen.active { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="blobs"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+
+<div class="app">
+
+  <!-- ЭКРАН 0 — интрига -->
+  <section class="screen active" id="s0">
+    <div class="badge" id="badge"></div>
+    <h1>У меня к тебе<br><span class="grad">один вопрос…</span></h1>
+    <div class="row">
+      <button class="btn btn-yes pulse" id="startBtn">Ну давай →</button>
+    </div>
+  </section>
+
+  <!-- ЭКРАН 1 -->
+  <section class="screen" id="s1">
+    <div class="badge">вопрос №1</div>
+    <h1>У тебя завтра<br>есть <span class="grad">планы?</span></h1>
+    <p class="sub">отвечай честно, у меня тут всё серьёзно 🙃</p>
+    <div class="row">
+      <button class="btn btn-ghost runner" id="hasPlans">Да, есть</button>
+      <button class="btn btn-yes" id="noPlans">Нет, свободна</button>
+    </div>
+  </section>
+
+  <!-- ЭКРАН 2 -->
+  <section class="screen" id="s2">
+    <div class="badge">вопрос №2</div>
+    <h1>Тогда пойдём<br><span class="grad">гулять?</span></h1>
+    <div class="row">
+      <button class="btn btn-yes pulse" id="goYes">Да, пойдём ❤️</button>
+      <button class="btn btn-ghost" id="goNo">Нет</button>
+    </div>
+    <div class="hint" id="hint2"></div>
+  </section>
+
+  <!-- ЭКРАН 3 -->
+  <section class="screen" id="s3">
+    <div class="badge">ты только что сделала мой день</div>
+    <h1>Отлично 😌</h1>
+    <p class="sub">осталось одно: напиши мне во сколько тебе удобно.</p>
+    <div id="chatWrap"></div>
+  </section>
+
+</div>
+
+<div class="confetti" id="confetti"></div>
+
+<script>
+/* ================== НАСТРОЙКИ — МЕНЯЕТСЯ ТОЛЬКО ЭТО ================== */
+const CONFIG = {
+  herName: "",     // "Анюта" — если хочешь обратиться по имени
+  telegram: "",    // ник в телеге без @, например "vanya"
+  whatsapp: ""     // номер для wa.me, например "79181234567"
+};
+/* ==================================================================== */
+
+const $ = (id) => document.getElementById(id);
+const show = (id) => {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(id).classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+/* ---------- имя в бейдже ---------- */
+if (CONFIG.herName) $('badge').textContent = 'для ' + CONFIG.herName;
+
+/* ---------- ЭКРАН 0 → 1 ---------- */
+$('startBtn').addEventListener('click', () => show('s1'));
+
+/* ---------- ЭКРАН 1: «Да, есть» отпрыгивает от пальца/курсора ---------- */
+const runner = $('hasPlans');
+const safeBtn = $('noPlans');
+
+const missTexts = [
+  "не попал по кнопке 🙂",
+  "не попал 😄",
+  "мимо 😁",
+  "не попал опять",
+  "кнопка быстрее тебя 🏃",
+  "даже не близко 😎",
+  "она не даётся 🙃",
+  "ладно, жми «Нет, свободна» 👉"
+];
+
+let misses = 0;
+let taps = 0;
+let pos = { x: 0, y: 0 };
+let lastDodge = 0;
+
+/* прямоугольник кнопки без учёта её текущего сдвига */
+function baseRect() {
+  const r = runner.getBoundingClientRect();
+  return { left: r.left - pos.x, top: r.top - pos.y, w: r.width, h: r.height };
+}
+
+function fits(b, tx, ty) {
+  const pad = 10;
+  const l = b.left + tx, t = b.top + ty;
+  return l >= pad && t >= pad &&
+         l + b.w <= window.innerWidth - pad &&
+         t + b.h <= window.innerHeight - pad;
+}
+
+/* не наезжаем на рабочую кнопку «Нет, свободна» и на текст */
+function hitsSafe(b, tx, ty) {
+  const l = b.left + tx, t = b.top + ty;
+  const s = safeBtn.getBoundingClientRect();
+  const pad = 18;
+  if (l < s.right + pad && l + b.w > s.left - pad &&
+      t < s.bottom + pad && t + b.h > s.top - pad) return true;
+
+  const texts = document.querySelectorAll('#s1 h1, #s1 .sub, #s1 .badge');
+  for (let i = 0; i < texts.length; i++) {
+    const r = texts[i].getBoundingClientRect();
+    if (r.width === 0) continue;             // скрытые/пустые не мешают
+    const p2 = 12;
+    if (l < r.right + p2 && l + b.w > r.left - p2 &&
+        t < r.bottom + p2 && t + b.h > r.top - p2) return true;
+  }
+  return false;
+}
+
+function showMiss(x, y, text) {
+  /* чтобы надписи не наслаивались друг на друга */
+  document.querySelectorAll('.miss').forEach(n => n.remove());
+  const el = document.createElement('div');
+  el.className = 'miss';
+  el.textContent = text;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  document.body.appendChild(el);
+
+  /* не даём надписи уехать за край экрана */
+  const r = el.getBoundingClientRect();
+  const half = r.width / 2;
+  const cx = Math.min(Math.max(x, half + 10), window.innerWidth - half - 10);
+  el.style.left = cx + 'px';
+
+  setTimeout(() => el.remove(), 1300);
+}
+
+function updateHint() {
+  /* подсказку больше не выводим: всё говорит надпись «не попал» */
+}
+
+/* главное: вектор уходит ОТ курсора/пальца, кнопка не покидает экран */
+function dodge(px, py, opts) {
+  opts = opts || {};
+  const now = Date.now();
+  if (opts.cooldown !== false) {
+    if (now - lastDodge < 120) return;
+    lastDodge = now;
+  }
+
+  const b = baseRect();
+  const cx = b.left + pos.x + b.w / 2;
+  const cy = b.top + pos.y + b.h / 2;
+
+  if (typeof px !== 'number' || !isFinite(px)) { px = cx; py = cy - 120; }
+  if (typeof py !== 'number' || !isFinite(py)) { py = cy - 120; }
+
+  let ang = Math.atan2(cy - py, cx - px);
+  if (!isFinite(ang)) ang = -Math.PI / 2;
+
+  const dists = opts.touch ? [150, 120, 190, 220] : [170, 140, 210, 240, 260];
+  const offs = [0, .28, -.28, .56, -.56, .84, -.84, 1.12, -1.12, 1.4, -1.4, 1.7, -1.7, 2.0, -2.0, 2.35, -2.35, 2.7, -2.7, 3.14];
+
+  /* ищем свободную точку: сначала там, где ничего не перекрываем, потом — хоть какую-то на экране */
+  function pickTarget(b, ang, mustBeFree) {
+    for (let d = 0; d < dists.length; d++) {
+      for (let i = 0; i < offs.length; i++) {
+        const a = ang + offs[i];
+        const tx = Math.cos(a) * dists[d];
+        const ty = Math.sin(a) * dists[d];
+        if (!fits(b, tx, ty)) continue;
+        if (mustBeFree && hitsSafe(b, tx, ty)) continue;
+        return { tx: tx, ty: ty };
+      }
+    }
+    return null;
+  }
+
+  let target = pickTarget(b, ang, true) || pickTarget(b, ang, false);
+
+  if (!target) {
+    /* зажали в угол — отходим настолько, насколько пускает экран */
+    const dd = opts.touch ? 150 : 170;
+    const tx = Math.max(-b.left + 10, Math.min(window.innerWidth - b.w - 10 - b.left, Math.cos(ang) * dd));
+    const ty = Math.max(-b.top + 10, Math.min(window.innerHeight - b.h - 10 - b.top, Math.sin(ang) * dd));
+    if (Math.abs(tx - pos.x) < 5 && Math.abs(ty - pos.y) < 5) {
+      if (opts.text) { showMiss(px, py, missTexts[Math.min(taps, missTexts.length - 1)]); taps++; }
+      return;
+    }
+    target = { tx: tx, ty: ty };
+  }
+
+  pos = { x: target.tx, y: target.ty };
+  runner.style.transform = 'translate(' + pos.x + 'px, ' + pos.y + 'px)';
+
+  if (opts.text) { showMiss(px, py, missTexts[Math.min(taps, missTexts.length - 1)]); taps++; }
+  misses++;
+  updateHint();
+}
+
+/* палец: тап не должен срабатывать — только «не попал» */
+runner.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  dodge(t.clientX, t.clientY, { touch: true, text: true });
+}, { passive: false });
+
+runner.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  dodge(e.clientX, e.clientY, { text: true });
+});
+
+runner.addEventListener('click', (e) => {
+  e.preventDefault();
+  dodge(e.clientX, e.clientY, { text: true, cooldown: false });
+});
+
+/* курсор приближается — кнопка уходит заранее */
+document.addEventListener('mousemove', (e) => {
+  if (!$('s1').classList.contains('active')) return;
+  const r = runner.getBoundingClientRect();
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+  if (Math.hypot(e.clientX - cx, e.clientY - cy) < 105) {
+    dodge(e.clientX, e.clientY, { touch: false, text: false });
+  }
+});
+
+/* если экран повернули/изменили — возвращаем кнопку в зону видимости */
+window.addEventListener('resize', () => {
+  const b = baseRect();
+  const maxX = window.innerWidth - b.w - 10 - b.left;
+  const minX = 10 - b.left;
+  const maxY = window.innerHeight - b.h - 10 - b.top;
+  const minY = 10 - b.top;
+  pos = {
+    x: Math.max(minX, Math.min(maxX, pos.x)),
+    y: Math.max(minY, Math.min(maxY, pos.y))
+  };
+  runner.style.transform = 'translate(' + pos.x + 'px, ' + pos.y + 'px)';
+});
+
+$('noPlans').addEventListener('click', () => show('s2'));
+
+/* ---------- ЭКРАН 2: «Нет» уменьшается и издевается ---------- */
+const noBtn = $('goNo');
+const noTexts = ["Нет", "точно нет?", "а если кофе ☕?", "а если мороженое 🍦?", "кнопка сломалась 🙂", "сдавайся, жми «да»"];
+let noClicks = 0;
+
+noBtn.addEventListener('click', () => {
+  noClicks++;
+  noBtn.textContent = noTexts[Math.min(noClicks, noTexts.length - 1)];
+  const scale = Math.max(0.42, 1 - noClicks * 0.13);
+  noBtn.style.transform = 'scale(' + scale + ')';
+  noBtn.style.opacity = String(Math.max(0.35, 1 - noClicks * 0.12));
+
+  const jokes = [
+    "",
+    "нет — это тоже ответ, но не тот, который мне нравится",
+    "кофе я уже мысленно купил",
+    "мороженое тоже вариант, я не гордый",
+    "кнопка «нет» официально не работает",
+    "она совсем маленькая, давай жми большую 😌"
+  ];
+  $('hint2').textContent = jokes[Math.min(noClicks, jokes.length - 1)];
+
+  if (noClicks >= 6) {
+    noBtn.style.pointerEvents = 'none';
+    noBtn.style.opacity = '0';
+    $('hint2').innerHTML = 'всё, выбора больше нет 😎';
+  }
+});
+
+$('goYes').addEventListener('click', () => { show('s3'); renderChat(); burst(); });
+
+/* ---------- ЭКРАН 3: просто «напиши мне время» ---------- */
+function renderChat() {
+  const wrap = $('chatWrap');
+  if (wrap.dataset.done) return;
+  wrap.dataset.done = '1';
+
+  let link = '';
+  let label = '';
+  if (CONFIG.whatsapp) { link = 'https://wa.me/' + CONFIG.whatsapp; label = 'Написать мне в WhatsApp'; }
+  else if (CONFIG.telegram) { link = 'https://t.me/' + CONFIG.telegram; label = 'Написать мне в Telegram'; }
+
+  if (!link) return;   // контакт не указан — остаётся только текст
+
+  const a = document.createElement('a');
+  a.href = link;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.className = 'btn btn-yes';
+  a.style.textDecoration = 'none';
+  a.style.display = 'inline-block';
+  a.textContent = label + ' →';
+  wrap.appendChild(a);
+}
+
+/* ---------- конфетти / сердечки ---------- */
+const EMOJI = ['💖', '✨', '🤍', '🎉', '💫', '🌸', '💗'];
+function burst() {
+  const box = $('confetti');
+  const n = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 34;
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement('div');
+    el.className = 'conf';
+    el.textContent = EMOJI[Math.floor(Math.random() * EMOJI.length)];
+    el.style.left = Math.random() * 100 + 'vw';
+    el.style.fontSize = (14 + Math.random() * 20) + 'px';
+    el.style.setProperty('--dx', (Math.random() * 160 - 80) + 'px');
+    el.style.setProperty('--rot', (Math.random() * 720 - 360) + 'deg');
+    el.style.animationDuration = (2.6 + Math.random() * 2.4) + 's';
+    el.style.animationDelay = (Math.random() * 0.5) + 's';
+    box.appendChild(el);
+    setTimeout(() => el.remove(), 6000);
+  }
+}
+</script>
+</body>
+</html>
